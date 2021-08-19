@@ -1,0 +1,31 @@
+trigger MultiplePrimaryContactTrigger on Contact (before insert, before update) {
+    List<Contact> primaryContacts = new List<Contact>();
+    
+    if (Trigger.isBefore && (Trigger.isInsert || Trigger.isUpdate)) {
+        for (Contact contact : Trigger.New) {
+            if (contact.Is_Primary_Contact__c && contact.AccountId != null) {
+                primaryContacts.add(contact);
+            }
+        }
+    }
+    
+    if (primaryContacts.size() > 1) {
+        for (Contact primaryContact : primaryContacts) {
+            primaryContact.Is_Primary_Contact__c.addError('You cannot insert more than one primary contact into an account');
+        }
+    } else if (primaryContacts.size() == 1) {
+        Contact primaryContact = primaryContacts[0];
+        
+        List<Contact> otherPrimaryContacts = [SELECT Id, Is_Primary_Contact__c 
+                                              FROM Contact 
+                                              WHERE Id != :primaryContact.Id 
+                                              AND AccountId = :primaryContact.AccountId 
+                                              AND Is_Primary_Contact__c = true];
+        
+        if (otherPrimaryContacts.isEmpty()) {
+            AsyncUpdate.setPrimaryPhone(primaryContact.Id, primaryContact.AccountId);
+        } else {
+            primaryContact.Is_Primary_Contact__c.addError('There already exists a primary contact for this account');
+        }
+    }
+}
