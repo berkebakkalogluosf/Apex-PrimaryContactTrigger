@@ -2,19 +2,24 @@ public class AsyncUpdate {
     
     @future
     public static void setPrimaryPhone(Id contactId, Id accountId) {
+        Contact primaryContact = new Contact();
+        List<Contact> contacts = new List<Contact>();
         
         try {
-            Contact primaryContact = [SELECT Id, Phone FROM Contact WHERE Id = :contactId];
-            List<Contact> contacts = [SELECT Id, Phone, Primary_Contact_Phone__c FROM Contact WHERE AccountId = :accountId];
-            
-            for (Contact contact : contacts) {
-                contact.Primary_Contact_Phone__c = primaryContact.Phone;
-            }   
-            update contacts;
-            
+            primaryContact = [SELECT Id, Phone FROM Contact WHERE Id = :contactId];
+            contacts = [SELECT Id, Phone, Primary_Contact_Phone__c FROM Contact WHERE AccountId = :accountId];
         } catch (QueryException e) {
             System.debug(e);
-        } catch (DMLException e) {
+        }
+        
+        for (Contact contact : contacts) {
+            contact.Primary_Contact_Phone__c = primaryContact.Phone;
+        }
+        
+        try {
+            update contacts;
+        }
+        catch (DMLException e) {
             System.debug(e);
         }
     }
