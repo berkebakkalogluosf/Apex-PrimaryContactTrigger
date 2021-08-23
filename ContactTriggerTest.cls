@@ -46,17 +46,18 @@ private class ContactTriggerTest {
         
         insert primaryContacts;
         
+        Test.stopTest();
+        
         List<Contact> contacts = [SELECT Id, Primary_Contact_Phone__c FROM Contact WHERE AccountId =: account.Id];
         
         Boolean primaryPhoneUpdated = true;
         
         for (Contact contact : contacts) {
-            if (!(contact.Primary_Contact_Phone__c == '000000')) {
+            if (contact.Primary_Contact_Phone__c != '000000') {
                 primaryPhoneUpdated = primaryPhoneUpdated || false;
+                System.debug('PPN: ' + contact.Primary_Contact_Phone__c);
             }
         }
-        
-        Test.stopTest();
         
         System.assertEquals(true, primaryPhoneUpdated);
     }
@@ -106,7 +107,7 @@ private class ContactTriggerTest {
             Test.stopTest();
             
         } catch (DMLException e) {
-            Boolean expectedExceptionThrown = e.getMessage().contains('You cannot insert more than one primary contact into an account');
+            Boolean expectedExceptionThrown = e.getMessage().contains('Cannot insert / update more than one Primary Contact per Account');
             System.assertEquals(true, expectedExceptionThrown);
         }
     }
