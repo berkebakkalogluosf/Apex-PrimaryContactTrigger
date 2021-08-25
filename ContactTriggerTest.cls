@@ -55,7 +55,6 @@ private class ContactTriggerTest {
         for (Contact contact : contacts) {
             if (contact.Primary_Contact_Phone__c != '000000') {
                 primaryPhoneUpdated = primaryPhoneUpdated || false;
-                System.debug('PPN: ' + contact.Primary_Contact_Phone__c);
             }
         }
         

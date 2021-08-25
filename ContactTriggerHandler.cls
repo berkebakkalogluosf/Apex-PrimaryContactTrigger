@@ -1,7 +1,16 @@
 public with sharing class ContactTriggerHandler {
+    static final String PRIMARY_EXISTS_ERROR = 'There already exists a primary contact for this account';
+    static final String MULTIPLE_PRIMARY_ERROR = 'Cannot insert / update more than one Primary Contact per Account';
+    
     public static void handleBefore(List<Contact> newRecords, Map<Id, Contact> oldRecords) {
+        List<AggregateResult> primaryContactPerAccount = new List<AggregateResult>();
         
-        List<AggregateResult> primaryContactPerAccount = [SELECT AccountId From Contact WHERE Is_Primary_Contact__c = TRUE GROUP BY AccountId];
+        try {
+            primaryContactPerAccount = [SELECT AccountId From Contact WHERE Is_Primary_Contact__c = TRUE GROUP BY AccountId];
+        } catch (QueryException e) {
+            System.debug(e);
+        }
+        
         Set<Id> accountsWithPrimaryContacts = new Set<Id>();
         Map<Id, String> accountsPrimaryPhone = new Map<Id, String>();
         
@@ -14,9 +23,9 @@ public with sharing class ContactTriggerHandler {
                 if(newRecord.Is_Primary_Contact__c && newRecord.AccountId != NULL) {
                     // Check if Account already has a Primary Contact
                     if(accountsWithPrimaryContacts.contains(newRecord.AccountId)) {
-                        newRecord.Is_Primary_Contact__c.addError('There already exists a primary contact for this account');
+                        newRecord.Is_Primary_Contact__c.addError(PRIMARY_EXISTS_ERROR);
                     } else {
-                        multipleAccountPrimaryCheck(accountsPrimaryPhone, newRecord);
+                        multiplePrimaryPerAccountCheck(accountsPrimaryPhone, newRecord);
                     }
                 }
             } else {
@@ -27,19 +36,11 @@ public with sharing class ContactTriggerHandler {
                 
                 if(newRecord.Is_Primary_Contact__c) {
                     if(isPrimaryContactChanged || phoneChanged || accountIdChanged) {
-                        // Check if the Account already has a Primary Contact
                         if(accountsWithPrimaryContacts.contains(newRecord.AccountId)) {
-                            Contact existingPrimaryContact = [SELECT Id FROM Contact WHERE AccountId = :newRecord.AccountId AND Is_Primary_Contact__c = TRUE];
-                            System.debug('existingPrimaryContact.Id' + existingPrimaryContact.Id);
-                            // Check if the updated Contact is the existing Primary Contact
-                            if(existingPrimaryContact.Id != newRecord.Id) {
-                                newRecord.Is_Primary_Contact__c.addError('There already exists a primary contact for this account');
-                            } else {
-                                multipleAccountPrimaryCheck(accountsPrimaryPhone, newRecord);
-                            }
-                        } else {
-                            multipleAccountPrimaryCheck(accountsPrimaryPhone, newRecord);
+                            updatedExistingPrimaryCheck(accountsPrimaryPhone, newRecord);
                         }
+                    } else {
+                        multiplePrimaryPerAccountCheck(accountsPrimaryPhone, newRecord);
                     }
                 }
             }
@@ -59,23 +60,38 @@ public with sharing class ContactTriggerHandler {
         
         for (Contact newRecord : newRecords) {
             Contact oldRecord = oldRecords.get(newRecord.Id);
-            Boolean primaryPhoneNotChanged = (newRecord.Primary_Contact_Phone__c == oldRecord.Primary_Contact_Phone__c);
+            Boolean primaryPhoneChanged = (newRecord.Primary_Contact_Phone__c != oldRecord.Primary_Contact_Phone__c);
             
-            if (primaryPhoneNotChanged) {
+            if (!primaryPhoneChanged && newRecord.Phone != NULL) {
                 changePrimaryPhones(newRecord, accountPrimaryPhoneMap);
             }
         }
     }
     
-    public static void multipleAccountPrimaryCheck(Map<Id, String> accountsPrimaryPhone, Contact newRecord) {
+    private static void multiplePrimaryPerAccountCheck(Map<Id, String> accountsPrimaryPhone, Contact newRecord) {
         if(accountsPrimaryPhone.containsKey(newRecord.AccountId)) {
-            newRecord.Is_Primary_Contact__c.addError('Cannot insert / update more than one Primary Contact per Account');
+            newRecord.Is_Primary_Contact__c.addError(MULTIPLE_PRIMARY_ERROR);
         } else {
             accountsPrimaryPhone.put(newRecord.AccountId, newRecord.Phone);
         }
     }
     
-    public static void changePrimaryPhones(Contact newRecord, Map<Id, String> accountPrimaryPhoneMap) {
+    private static void updatedExistingPrimaryCheck(Map<Id, String> accountsPrimaryPhone, Contact newRecord) {
+        Contact existingPrimaryContact = new Contact();
+        try {
+            existingPrimaryContact = [SELECT Id FROM Contact WHERE AccountId = :newRecord.AccountId AND Is_Primary_Contact__c = TRUE];
+        } catch (QueryException e) {
+            System.debug(e);
+        }
+        
+        if(existingPrimaryContact.Id == newRecord.Id) {
+            multiplePrimaryPerAccountCheck(accountsPrimaryPhone, newRecord);
+        } else {
+            newRecord.Is_Primary_Contact__c.addError(PRIMARY_EXISTS_ERROR);
+        }
+    }
+    
+    private static void changePrimaryPhones(Contact newRecord, Map<Id, String> accountPrimaryPhoneMap) {
         if (newRecord.Is_Primary_Contact__c) {
             accountPrimaryPhoneMap.put(newRecord.AccountId, newRecord.Phone);
         }

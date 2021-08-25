@@ -11,7 +11,6 @@ public class AsyncUpdate {
                 
                 for (Contact contact : contacts) {
                     contact.Primary_Contact_Phone__c = accountPrimaryPhoneMap.get(accountId);
-                    System.debug(contact.LastName + ' PPN = ' + contact.Primary_Contact_Phone__c);
                     updatedContacts.add(contact);
                 }
             }            
